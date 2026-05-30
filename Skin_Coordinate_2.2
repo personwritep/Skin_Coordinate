@@ -1,0 +1,1155 @@
+// ==UserScript==
+// @name         Skin Coordinate
+// @namespace    http://tampermonkey.net/
+// @version      2.2
+// @description   ブログスキン背景画像の差替えツール〔新旧タイプスキン対応版〕
+// @author       Ameba Blog User
+// @match       https://ameblo.jp/*
+// @match       https://blog.ameba.jp/ucs/upload/srvimage*
+// @match       https://blog.ameba.jp/ucs/editcss/*
+// @match       https://blog.ameba.jp/ucs/skin/srvskinpreview*
+// @match       https://blog.ameba.jp/ucs/customize/*
+// @run-at       document-start
+// @noframes
+// @grant        none
+// ==/UserScript==
+
+
+let ua=0; // Chromeの場合のフラグ
+let agent=window.navigator.userAgent.toLowerCase();
+if(agent.indexOf('firefox') > -1){ ua=1; } // Firefoxの場合のフラグ
+
+let task=0; // メイン ON/OFF
+let active=-1; // 編集ボタン選択
+let g_open=0; // サブパネル ON/OFF
+let hk=3; // 編集対象要素のデータベース上のインデックス
+let last_hk=3; // Round Selector の初期インデックス
+let b_param;
+
+
+window.addEventListener('DOMContentLoaded', function(){
+    preset_db(); });
+
+function preset_db(){
+    let sp=document.querySelector('.skin-page'); // 新タイプスキン
+    let sb=document.querySelector('.skinBody'); // 旧タイプスキン
+
+    if(sp){
+        b_param=[
+            [0, '', 0, 0, 0, 0, 0, 0],
+            [0, 'html', 0, 0, 50, 50, 0, 0],
+            [0, 'body', 0, 0, 50, 50, 0, 0],
+            [0, '.skin-bgHeader', 0, 0, 50, 50, 0, 0],
+            [0, '.skin-bgHeader > div', 0, 0, 50, 50, 0, 0],
+            [0, '.skin-page', 0, 0, 50, 50, 0, 0],
+            [0, '.skin-page::before', 0, 0, 50, 50, 0, 0],
+            [0, '.skin-btn', 0, 0, 50, 50, 0, 0],
+            [0, '.skin-blogFooterNavInner', 0, 0, 50, 50, 0, 0],
+            [0, '.skin-btnSidePrimary', 0, 0, 50, 50, 0, 0],
+            [0, '.skin-btnSide', 0, 0, 50, 50, 0, 0],
+            [0, '._3z8Z6GLQ', 0, 0, 50, 50, 0, 0]]; }
+
+    // b_param[n][0] 　0:デフォルト 1:アレンジCSS適用
+    // b_param[n][1] 　対象要素のCSSセレクタ
+    // b_param[n][2] 　ユーザーの背景画像SRC
+    // b_param[n][3] ～ b_param[n][7] 　背景プロパティ
+
+    if(sb){
+        b_param=[
+            [0, '', 0, 0, 0, 0, 0, 0],
+            [0, 'html', 0, 0, 50, 50, 0, 0],
+            [0, 'body', 0, 0, 50, 50, 0, 0],
+            [0, '.skinBody', 0, 0, 50, 50, 0, 0],
+            [0, '.skinBody::before', 0, 0, 50, 50, 0, 0],
+            [0, '.skinImgBtnS', 0, 0, 50, 50, 0, 0],
+            [0, '._3z8Z6GLQ', 0, 0, 50, 50, 0, 0]]; }}
+
+
+
+let target=document.querySelector('head');
+let monitor=new MutationObserver(catch_key);
+monitor.observe(target, { childList: true });
+
+catch_key();
+
+function catch_key(){
+    let sp=document.querySelector('.skin-page'); // 新タイプスキン
+    let sb=document.querySelector('.skinBody'); // 旧タイプスキン
+    if(sp || sb){ // ページ表示エリアの取得が条件
+        document.addEventListener("keydown", check_key);
+        function check_key(event){
+            let gate=-1;
+            if(event.altKey==true){
+                if(event.keyCode==118){
+                    event.preventDefault(); gate=1; }} // ショートカット「Alt＋F7」
+
+            if(gate==1){
+                event.stopImmediatePropagation();
+                event.preventDefault();
+                main(); }} // ツールの実効関数
+    }} // catch_key
+
+
+
+function main(){
+    if(task==0){
+        task=1;
+        panel1_disp();
+        active_disp();
+        coordinate(); }
+    else if(task==1){
+        task=0;
+        un_view(hk);
+        panel1_remove();
+        panel2_remove(); }}
+
+
+
+function panel1_disp(){
+    let panel=document.createElement('section');
+    panel.setAttribute('id', 'panel1');
+
+    panel.innerHTML=
+        '<input id="b1" type="submit" value="　Html　">'+
+        '<input id="b2" type="submit" value="　Body　">'+
+        '<input id="b0" type="submit" value="Round Selector">'+
+        '<input id="upload" type="submit" value="Image Upload">'+
+        '<input id="get_css" type="submit" value="Get CSS">'+
+        '<input id="css_edit" type="submit" value="CSS Editor">';
+
+    let css=
+        '#panel1 { position: fixed; bottom: 40px; left: calc(50% - 490px); '+
+        'padding: 15px 0 15px 20px; background: rgba(0, 95, 86, 0.8); '+
+        'border: 2px solid #fff; border-radius: 4px; width: 980px; z-index: 10; }'+
+        '#panel1 input { font: normal 16px meiryo; color: #000; '+
+        'margin-right: 20px; padding: 4px 6px 2px; } '+
+        '#b0, #b1, #b2  { outline: none; } '+
+        '#b1, #b2 { width: 120px; } '+
+        '#b0 { margin-right: 60px !important; padding-left: 15px !important; '+
+        'width: 210px; text-align: left; } '+
+        '#upload, #get_css, #css_edit '+
+        '{ border: 2px solid #07c5b4; background: #3df7e5; }';
+
+    if(ua==1){
+        css+='#panel1 input { padding: 4px 5px 2px; }'; }
+
+    let style=document.createElement('style');
+    style.innerHTML=css;
+    panel.appendChild(style);
+
+    let panel1=document.querySelector('#panel1');
+    if(!panel1){
+        document.querySelector('body').appendChild(panel); }} // panel1_disp()
+
+
+function panel1_remove(){
+    let panel1=document.querySelector('#panel1');
+    if(panel1){
+        panel1.remove(); }}
+
+
+
+function panel2_disp(){
+    let panel=document.createElement('section');
+    panel.setAttribute('id', 'panel2');
+
+    panel.innerHTML=
+        '<input id="gS" type="submit" value="S">'+
+        '<input id="g0" type="submit" value="New">'+
+        '<input id="g1" type="text" placeholder="背景用の画像SRCを入力">'+
+        '<input id="g2" type="submit" value="Set SRC">'+
+        '<input id="g3" type="submit">'+
+        '<div id="wper1"><input id="g4" type="number" min="0" max="100"></div>'+
+        '<div id="wper2"><input id="g5" type="number" min="0" max="100"></div>'+
+        '<input id="g6" type="submit">'+
+        '<input id="g7" type="submit">'+
+        '<input id="g8" type="submit" value="X">';
+
+    let css=
+        '#panel2 { position: fixed; bottom: 110px; left: calc(50% - 490px); width: 980px; '+
+        'padding: 15px 0 15px 20px; background: rgba(0, 95, 86, 0.8); '+
+        'border: 2px solid #fff; border-radius: 4px; z-index: 10;} '+
+        '#panel2 input { position: relative; font: normal 16px meiryo; color: #000; '+
+        'margin-right: 15px; padding: 4px 6px 2px; } '+
+        '#g1 { width: 300px; } #g3, #g6, #g7 { width: 70px; } '+
+        '#g4, #g5 { width: 54px; text-align: center; padding: 4px 5px 2px 1px !important; '+
+        'filter: brightness(0.93); } '+
+        '#g5 { margin-left: -10px; } '+
+        '#wper1, #wper2 { position: relative; display: inline-block; } '+
+        '#wper1::after, #wper2::after { content: "%"; position: absolute; right: 21px; top: 3px; '+
+        'padding-top: 4px;background: #ededed; } '+
+        '#g4:hover, #g5:hover { z-index: 1; } ';
+
+    if(ua==1){
+        css+='#g1 { border: 2px solid #ccc; box-sizing: border-box; } '+
+            '#g4, #g5 { height: 28px; }'; }
+
+    let style=document.createElement('style');
+    style.innerHTML=css;
+    panel.appendChild(style);
+
+    let panel2=document.querySelector('#panel2');
+    if(!panel2){
+        document.querySelector('body').appendChild(panel); }} // panel2_disp()
+
+
+function panel2_remove(){
+    let panel2=document.querySelector('#panel2');
+    if(panel2){
+        panel2.remove(); }}
+
+
+
+function active_disp(){
+    let b1=document.querySelector('#b1');
+    let b2=document.querySelector('#b2');
+    let b0=document.querySelector('#b0');
+    if(active==-1){
+        b1.style.boxShadow='none';
+        b1.style.outline='none';
+        b2.style.boxShadow='none';
+        b0.style.boxShadow='none'; }
+    if(active==1){
+        b1.style.boxShadow='0 0 0 4px #fff';
+        b1.style.outline='2px dotted #000';
+        b2.style.boxShadow='none';
+        b0.style.boxShadow='none'; }
+    if(active==2){
+        b1.style.boxShadow='none';
+        b1.style.outline='none';
+        b2.style.boxShadow='0 0 0 2px #2196f3, 0 0 0 4px #fff';
+        b0.style.boxShadow='none'; }
+    if(active==0){
+        b1.style.boxShadow='none';
+        b1.style.outline='none';
+        b2.style.boxShadow='none';
+        b0.style.boxShadow='0 0 0 2px #2196f3, 0 0 0 4px #fff'; }}
+
+
+
+function setup_disp(){
+    let b1=document.querySelector('#b1');
+    let b2=document.querySelector('#b2');
+    if(b_param[1][0]==1){
+        b1.value='🌐 Html　'; }
+    else{
+        b1.value='　Html　'; }
+    if(b_param[2][0]==1){
+        b2.value='🌐 Body　'; }
+    else{
+        b2.value='　Body　'; }}
+
+
+
+function coordinate(){
+    let b1=document.querySelector('#b1');
+    let b2=document.querySelector('#b2');
+    let b0=document.querySelector('#b0');
+    let upload=document.querySelector('#upload');
+    let get_css=document.querySelector('#get_css');
+    let css_edit=document.querySelector('#css_edit');
+
+    setup_disp();
+    check_back_neo();
+
+
+    b0.onclick=function(){
+        if(active==1){
+            un_view(1);
+            if(b_param[1][0]==0){ // 編集フラグ 0
+                undo_check(1); }}
+        if(active==2){
+            un_view(2);
+            if(b_param[2][0]==0){ // 編集フラグ 0
+                undo_check(2); }}
+
+        if(active!=0){
+            active=0; //「Round Selector」ON
+            active_disp();
+            hk=last_hk;
+            view(hk); }
+        else{
+            if(g_open==1){
+                g_open=0;
+                undo_impose(0);
+
+                if(b_param[hk][2]==0){ // ユーザー画像がない場合
+                    b_param[hk][0]=0; // 編集フラグ 0
+                    undo_check(hk); }
+                else { // ユーザー画像があると 編集フラグ1
+                    b_param[hk][0]=1; }} // 編集フラグ1
+            else{
+                active=-1; //「Round Selector」OFF
+                active_disp();
+                last_hk=hk;
+                un_view(hk); }}}
+
+
+
+    b1.onclick=function(){
+        if(active==0){ // b0「Round Selector」が起動していたらOFFに
+            last_hk=hk;
+            un_view(hk); }
+        if(active==2){
+            un_view(2);
+            if(b_param[2][0]==0){ // 編集フラグ 0
+                undo_check(2); }}
+
+        if(active!=1){
+            active=1;
+            active_disp();
+            hk=1;
+            view(1);
+            check_back(1); }
+        else{
+            if(g_open==1){
+                g_open=0;
+                undo_impose(1);
+
+                if(b_param[1][2]==0){ // ユーザー画像がない場合
+                    b_param[1][0]=0; // 編集フラグ 0
+                    undo_check(1); }
+                else { // ユーザー画像があると 編集フラグ1
+                    b_param[1][0]=1; }// 編集フラグ1
+                setup_disp(); }
+            else{
+                active=-1;
+                active_disp();
+                un_view(1);
+
+                if(b_param[1][0]==0){ // 編集フラグ 0
+                    undo_check(1); }}}}
+
+
+
+    b2.onclick=function(){
+        if(active==0){ // b0「Round Selector」が起動していたらOFFに
+            last_hk=hk;
+            un_view(hk); }
+        if(active==1){
+            un_view(1);
+            if(b_param[1][0]==0){ // 編集フラグ 0
+                undo_check(1); }}
+
+        if(active!=2){
+            active=2;
+            active_disp();
+            hk=2;
+            view(2);
+            check_back(2); }
+        else{
+            if(g_open==1){
+                g_open=0;
+                undo_impose(2);
+
+                if(b_param[2][2]==0){ // ユーザー画像がない場合
+                    b_param[2][0]=0; // 編集フラグ 0
+                    undo_check(2); }
+                else { // ユーザー画像があると 編集フラグ1
+                    b_param[2][0]=1; } // 編集フラグ1
+                setup_disp(); }
+            else{
+                active=-1;
+                active_disp();
+                un_view(2);
+
+                if(b_param[2][0]==0){ // 編集フラグ 0
+                    undo_check(2); }}}}
+
+
+
+    upload.onclick=function(){
+        window.open('https://blog.ameba.jp/ucs/upload/srvimagelist.do',
+                    null, 'top=50,left=100,width=800,height=640'); }
+
+
+
+    get_css.onclick=function(){
+        total_css(); }
+
+
+
+    css_edit.onclick=function(){
+        let open_url='https://blog.ameba.jp/ucs/editcss/srvcssupdateinput.do?sco';
+        window.open(open_url, null, 'top=50,left=100,width=880,height=920'); }
+
+} // coordinate()
+
+
+
+function check_back_neo(){
+    div_db();
+    //    let write_json=JSON.stringify(b_param); // db内容の確認用メンテナンスコード ⭕
+    //    localStorage.setItem('SkinCoordinate', write_json); // ローカルストレージ 保存
+
+
+    let b0=document.querySelector('#b0');
+    b0.value='Round Selector　'+ hk +'/'+ (b_param.length-1);
+
+    if(active > -1){
+        view(hk); } // 初期表示
+
+    let press=0; // キーのチャタリング防止フラグ
+
+
+    document.addEventListener('keydown', round_key); // キーコントロール検知
+    document.addEventListener('keyup', reset_press); // キーの押下後を検知
+
+    function round_key(event){
+        if(event.keyCode==37 || event.keyCode==38){ //「←」「↑」
+            event.preventDefault();
+            if(active==0){
+                back(); }}
+        if(event.keyCode==39 || event.keyCode==40){ //「→」「↓」
+            event.preventDefault();
+            if(active==0){
+                forward(); }}
+        if(event.keyCode==32 && event.ctrlKey==false){ //「Space」で解除
+            event.preventDefault();
+            if(active>-1 && press==0){
+                press=1;
+                edit_in_out(); }} // 背景画像のアレンジ
+        if(event.keyCode==32 && event.ctrlKey==true){ //「Ctrl + Space」背景削除を戻す
+            event.preventDefault();
+            if(active>-1 && press==0){
+                press=1;
+                edit_delete_back(); }}} // round_key()
+
+
+    function reset_press(event){
+        event.preventDefault();
+        press=0; }
+
+
+    function back(){
+        if(hk>3 && g_open==0){
+            un_view(hk);
+            hk-=1;
+            view(hk); }}
+
+
+    function forward(){
+        if(hk<b_param.length-1 && g_open==0){
+            un_view(hk);
+            hk+=1;
+            view(hk); }}
+
+
+    function edit_in_out(){
+        if(g_open==0){
+            g_open=1;
+            edit_view(hk);
+            impose(hk); }
+        else if(g_open==1){ // edit_inを終了時にフラグ決定する
+            g_open=0;
+            undo_impose(hk);
+            view(hk);
+            if(b_param[hk][2]==0){ // ユーザー画像がない場合
+                b_param[hk][0]=0; // 編集フラグ 0
+                undo_check(hk); }
+            else { // ユーザー画像があると 編集フラグ1
+                b_param[hk][0]=1; }}} // 編集フラグ1
+
+
+    function edit_delete_back(){
+        undo_check(hk); // 既存指定のタグがあれば全削除
+        if(b_param[hk][0]==0){
+            b_param[hk][0]=1; // 背景指定が無い状態で「指定」有り
+            b_param[hk][2]=0; // ユーザーの背景指定があれば削除
+            b_param[hk][3]=0; // 以下背景データベースをリセット
+            b_param[hk][4]=50;
+            b_param[hk][5]=50;
+            b_param[hk][6]=0;
+            b_param[hk][7]=0;
+            set_skintag2(hk); } // 実際の背景画像をクリア指定のタグを配置
+        else if(b_param[hk][0]==1){ // クリア指定を解除
+            b_param[hk][0]=0; // 通常の無指定の状態にする
+            b_param[hk][2]=0; // ユーザーの背景指定があれば削除（編集状態の場合）
+            b_param[hk][3]=0; // 以下背景データベースをリセット（編集状態の場合）
+            b_param[hk][4]=50;
+            b_param[hk][5]=50;
+            b_param[hk][6]=0;
+            b_param[hk][7]=0; }
+        setup_disp();
+        if(g_open==1){
+            g_open=0;
+            view(hk);
+            undo_impose(hk); }}
+
+} // check_back_neo()
+
+
+
+function view(hk){
+    let pseudo=0;
+    let selector=b_param[hk][1];
+    if(selector.includes('::before')){
+        pseudo=1;
+        selector=selector.replace('::before', ''); }
+
+    if(selector!=0){
+        let target=document.querySelectorAll(selector);
+        if(target.length!=0){
+            for(let k=0; k<target.length; k++){
+                if(hk>2){
+                    if(pseudo==0){
+                        target[k].style.boxShadow='rgb(33, 150, 243) 0 0 0 3px inset, '+
+                            'rgb(255, 255, 255) 0 0 0 4px inset, '+
+                            'rgba(0, 160, 255, 0.4) 0 0 0 200vw inset'; }
+                    else {
+                        target[k].style.boxShadow='rgb(255, 150, 0) 0 0 0 3px inset, '+
+                            'rgb(255, 255, 255) 0 0 0 4px inset, '+
+                            'rgba(0, 160, 255, 0.4) 0 0 0 200vw inset'; }
+                    let b0=document.querySelector('#b0');
+                    b0.value='Round Selector　'+ hk +'/'+ (b_param.length-1); }
+                if(hk==2){
+                    target[k].style.boxShadow='rgb(0, 160, 160) 0 0 0 5px inset, '+
+                        'rgb(255, 255, 255) 0 0 0 6px inset, '+
+                        'rgba(0, 160, 255, 0.4) 0 0 0 200vw inset'; }
+                if(hk==1){
+                    target[k].style.boxShadow='rgb(0, 0, 0) 0 0 0 5px inset, '+
+                        'rgb(255, 255, 255) 0 0 0 6px inset, '+
+                        'rgba(0, 160, 255, 0.4) 0 0 0 200vw inset'; }}}}}
+
+
+function un_view(hk){
+    let pseudo=0;
+    let selector=b_param[hk][1];
+    if(selector.includes('::before')){
+        pseudo=1;
+        selector=selector.replace('::before', ''); }
+
+    if(selector!=0){
+        let target=document.querySelectorAll(selector);
+        if(target.length!=0){
+            for(let k=0; k<target.length; k++){
+                target[k].style.boxShadow='none'; }}}}
+
+
+function edit_view(hk){
+    let pseudo=0;
+    let selector=b_param[hk][1];
+    if(selector.includes('::before')){
+        pseudo=1;
+        selector=selector.replace('::before', ''); }
+
+    if(selector!=0){
+        let target=document.querySelectorAll(selector);
+        if(target.length!=0){
+            for(let k=0; k<target.length; k++){
+                if(hk>2){
+                    if(pseudo==0){
+                        target[k].style.boxShadow='rgb(33, 150, 243) 0 0 0 3px inset, '+
+                            'rgb(255, 255, 255) 0 0 0 4px inset'; }
+                    else{
+                        target[k].style.boxShadow='rgb(255, 150, 0) 0 0 0 3px inset, '+
+                            'rgb(255, 255, 255) 0 0 0 4px inset'; }}
+                if(hk==2){
+                    target[k].style.boxShadow='rgb(0, 160, 160) 0 0 0 5px inset, '+
+                        'rgb(255, 255, 255) 0 0 0 6px inset'; }
+                if(hk==1){
+                    target[k].style.boxShadow='rgb(0, 0, 0) 0 0 0 5px inset, '+
+                        'rgb(255, 255, 255) 0 0 0 6px inset'; }}}}}
+
+
+
+function div_db(){ // 背景画像のある対象要素のセレクタ・初期値の生成と配列への追加
+    let div_ele=document.querySelectorAll('div');
+
+    for(let k=0; k<div_ele.length; k++){
+        let cumpStyle=window.getComputedStyle(div_ele[k], null);
+        if(cumpStyle.backgroundImage!='none' || cumpStyle.backgroundColor!='rgba(0, 0, 0, 0)'){
+            if(get_selector(div_ele[k])){
+                let selector=get_selector(div_ele[k]);
+                let same=0;
+                for(let d=0; d<b_param.length; d++){
+                    if(b_param[d][1].indexOf(selector)!=-1){
+                        same=1;
+                        break; }}
+                if(same==0){
+                    let blank_back=selector;
+                    b_param.push( [0, blank_back, 0, 0, 50, 50, 0, 0]); }}}}
+} // div_db()
+
+
+function get_selector(ele){
+    let id_selector=ele.getAttribute('id');
+    if(id_selector!=null){
+        return '#'+ id_selector; }
+    else{
+        let class_selector=ele.className.split(' ')[0];
+        if(class_selector==''){
+            return false; }
+        else {
+            return '.'+ class_selector; }}}
+
+
+
+function check_back(n){
+    set_skintag2(n);
+    set_skintag3(n);
+    set_skintag4(n);
+    set_skintag6(n);
+    set_skintag7(n); } // ボタン「n」の要素に #skin_n2～#skin_n7 のstyleタグを生成し適用
+
+
+function undo_check(n){
+    remove_skintag(n, 2);
+    remove_skintag(n, 3);
+    remove_skintag(n, 4);
+    remove_skintag(n, 6);
+    remove_skintag(n, 7); }
+
+
+function remove_skintag(n, idn){
+    let id_selector='#skin_'+ String(n*10+idn);
+    if(document.querySelector(id_selector)){
+        document.querySelector(id_selector).remove(); }}
+
+
+
+function impose(n){
+    panel2_disp();
+
+    let gS=document.querySelector('#gS');
+    let g0=document.querySelector('#g0');
+    let g1=document.querySelector('#g1');
+    let g2=document.querySelector('#g2');
+    let g3=document.querySelector('#g3');
+    let g4=document.querySelector('#g4');
+    let g5=document.querySelector('#g5');
+    let g6=document.querySelector('#g6');
+    let g7=document.querySelector('#g7');
+    let g8=document.querySelector('#g8');
+    let wper1=document.querySelector('#wper1');
+    let wper2=document.querySelector('#wper2');
+
+
+    let n_agent;
+    if(n>2){
+        n_agent=0; }
+    else{
+        n_agent=n; }
+    let b_id='#b'+ n_agent;
+    document.querySelector(b_id).style.background='#3bff5c';
+    document.querySelector(b_id).style.borderStyle='solid';
+
+    for(let k=0; k<3; k++){
+        if(k!=n_agent){
+            let b_id='#b'+k;
+            document.querySelector(b_id).disabled=true; }}
+
+    if(n>2){
+        g8.value='✜'; }
+
+
+
+    if(b_param[n][2]==0){ // SRC入力無し 未処理・初期化後
+        g1.value='';
+        g1.disabled=false;
+        g2.disabled=false;
+        g3.disabled=true;
+        g4.disabled=true;
+        g5.disabled=true;
+        g6.disabled=true;
+        g7.disabled=true;
+
+        g3.style.opacity='0';
+        wper1.style.opacity='0';
+        wper2.style.opacity='0';
+        g6.style.opacity='0';
+        g7.style.opacity='0'; }
+    else{
+        g1.value=b_param[n][2];
+        g1.disabled=true;
+        g2.disabled=true;
+        g3.disabled=false;
+        g4.disabled=false;
+        g5.disabled=false;
+        g6.disabled=false;
+        g7.disabled=false;
+
+        g3.style.opacity='1';
+        wper1.style.opacity='1';
+        wper2.style.opacity='1';
+        g6.style.opacity='1';
+        g7.style.opacity='1'; }
+
+    if(b_param[n][3]==0){ // Size値
+        g3.value='Size A'; }
+    else if(b_param[n][3]==1){
+        g3.value='Size B'; }
+    else if(b_param[n][3]==2){
+        g3.value='Size C'; }
+    g4.value=b_param[n][4]; // Psition値
+    g5.value=b_param[n][5]; // Psition値
+    if(b_param[n][6]==0){ // Repeat値
+        g6.value='Repeat'; }
+    else{
+        g6.value='No Rep'; }
+    if(b_param[n][7]==0){ // Fix Position値
+        g7.value='Not Fix'; }
+    else{
+        g7.value='Fixed'; }
+    check_back(n); // 全ての設定値を適用してページを再表示
+
+
+
+    gS.onclick=function(){
+        show_size(n); }
+
+
+
+    g0.onclick=function(){ // 処理を初期化する
+        g1.disabled=false;
+        g2.disabled=false;
+        g3.disabled=true;
+        g4.disabled=true;
+        g5.disabled=true;
+        g6.disabled=true;
+        g7.disabled=true;
+
+        g3.style.opacity='0';
+        wper1.style.opacity='0';
+        wper2.style.opacity='0';
+        g6.style.opacity='0';
+        g7.style.opacity='0';
+
+        g1.value='';
+        b_param[n][2]=0; // SRCリセット
+        g3.value='Size A';
+        b_param[n][3]=0; // Size値リセット
+        g4.value=50; // Psition値リセット
+        b_param[n][4]=50;
+        g5.value=50; // Psition値リセット
+        b_param[n][5]=50;
+        g6.value='Repeat';
+        b_param[n][6]=0; // Repeat値リセット
+        g7.value='No Fix';
+        b_param[n][7]=0; // Fix Position値リセット
+
+        set_skintag2(n); // 画像・内枠線表示のリセット
+        remove_skintag(n, 3);
+        remove_skintag(n, 4);
+        remove_skintag(n, 6);
+        remove_skintag(n, 7); }
+
+
+
+    g2.onclick=function(){
+        if(b_param[n][2]==0 && g1.value!=''){ // Newの状態のみ入力可
+            b_param[n][2]=g1.value; // SRCを取得
+            g1.disabled=true;
+            g2.disabled=true;
+            g3.disabled=false;
+            g4.disabled=false;
+            g5.disabled=false;
+            g6.disabled=false;
+            g7.disabled=false;
+
+            g3.style.opacity='1';
+            wper1.style.opacity='1';
+            wper2.style.opacity='1';
+            g6.style.opacity='1';
+            g7.style.opacity='1';
+
+            set_skintag2(n);
+            set_skintag4(n); }}
+
+
+
+    g3.onclick=function(){
+        if(b_param[n][3]==0){
+            b_param[n][3]=1;
+            g3.value='Size B'; }
+        else if(b_param[n][3]==1){
+            b_param[n][3]=2;
+            g3.value='Size C'; }
+        else if(b_param[n][3]==2){
+            b_param[n][3]=0;
+            g3.value='Size A'; }
+        g4.value=50; // position値をリセット
+        b_param[n][4]=50;
+        g5.value=50; // position値をリセット
+        b_param[n][5]=50;
+        set_skintag3(n);
+        set_skintag4(n); }
+
+
+
+    g4.addEventListener('input', function(event){
+        event.preventDefault();
+        b_param[n][4]=g4.value;
+        set_skintag4(n); });
+
+
+
+    g5.addEventListener('input', function(event){
+        event.preventDefault();
+        b_param[n][5]=g5.value;
+        set_skintag4(n); });
+
+
+
+    g6.onclick=function(){
+        if(b_param[n][6]==0){
+            b_param[n][6]=1;
+            g6.value='No Rep'; }
+        else{
+            b_param[n][6]=0;
+            g6.value='Repeat'; }
+        set_skintag6(n); }
+
+
+
+    g7.onclick=function(){
+        if(b_param[n][7]==0){
+            b_param[n][7]=1;
+            g7.value='Fixed'; }
+        else{
+            b_param[n][7]=0;
+            g7.value='Not Fix'; }
+        set_skintag7(n); }
+
+
+
+    g8.onclick=function(){
+        if(n>2){
+            ex_selector(hk); }
+        else{
+            undo_impose(n); }}
+
+} // impose()
+
+
+
+function ex_selector(hk){
+    let page_html=document.querySelector('html');
+    let class_selector=page_html.className.split(' ')[0]; //「column」クラスを取得
+    if(class_selector){
+        if(!b_param[hk][1].includes(class_selector)){ // 既に追加していない事が条件
+            let ex_sel='.'+ class_selector +' '+ b_param[hk][1];
+            b_param[hk][1]=ex_sel; }}
+    check_back(hk); }
+
+
+
+function undo_impose(n){
+    panel2_remove();
+    g_open=0;
+
+    let n_agent;
+    if(n>2){
+        n_agent=0; }
+    else{
+        n_agent=n; }
+    let b_id='#b'+ n_agent;
+    document.querySelector(b_id).style.background='';
+    document.querySelector(b_id).style.borderStyle='';
+    for(let k=0; k<3; k++){
+        let b_id='#b'+k;
+        document.querySelector(b_id).disabled=false; }}
+
+
+
+function show_size(n){
+    let area;
+    area=document.querySelector(b_param[n][1]);
+    alert(
+        '背景画像が表示される範囲のサイズ\n\n　　'+
+        area.getBoundingClientRect().width
+        +' × '+ area.getBoundingClientRect().height +'\n\n'+
+        '要素がウインドウ幅全体に拡がる場合は\n'+
+        '背景幅も変化する事に注意してください'); }
+
+
+
+function set_skintag2(n){
+    let htm=document.querySelector('html');
+    let css;
+
+    if(b_param[n][2]==0){ // アレンジ画像がない場合
+        if(n!=1){ // プリセット「1」以外
+            css=b_param[n][1] +' { background: none; }'; } // 背景を非表示
+        else{ // プリセット「1」
+            css=b_param[n][1] +' { background: #fff; background-image: '+
+                'linear-gradient(45deg, #ddd 25%, transparent 25%, '+
+                'transparent 75%, #ddd 75%, #ddd), '+
+                'linear-gradient(-45deg, #ddd 25%, transparent 25%, transparent 75%, '+
+                '#ddd 75%, #ddd); background-size: 10px 10px; }'; }} // 特殊背景表示
+    else{ // SRC指定 アレンジ画像を表示
+        css=b_param[n][1] +' { background: url('+ b_param[n][2] +'); }'; }
+
+    let style=document.createElement('style');
+    let s_id='skin_'+ String(n*10+2);
+    style.setAttribute('id', s_id);
+    style.innerHTML=css;
+    if(document.querySelector('#'+s_id)){
+        document.querySelector('#'+s_id).remove(); }
+    htm.appendChild(style); }
+
+
+
+function set_skintag3(n){
+    let htm=document.querySelector('html');
+    let css; // Size値指定
+
+    if(b_param[n][3]==0){
+        css=b_param[n][1] +' { background-size: ""; }'; }
+    if(b_param[n][3]==1){
+        css=b_param[n][1] +' { background-size: contain; }'; }
+    if(b_param[n][3]==2){
+        css=b_param[n][1] +' { background-size: cover; }'; }
+
+    let style=document.createElement('style');
+    let s_id='skin_'+ String(n*10+3);
+    style.setAttribute('id', s_id);
+    style.innerHTML=css;
+    if(document.querySelector('#'+s_id)){
+        document.querySelector('#'+s_id).remove(); }
+    htm.appendChild(style); }
+
+
+
+function set_skintag4(n){
+    let htm=document.querySelector('html');
+
+    let css;
+    let posx=b_param[n][4];
+    let posy=b_param[n][5];
+    css=b_param[n][1] +' { background-position: '+ posx +'% '+ posy +'%; }';
+
+    let style=document.createElement('style');
+    let s_id='skin_'+ String(n*10+4);
+    style.setAttribute('id', s_id);
+    style.innerHTML=css;
+    if(document.querySelector('#'+s_id)){
+        document.querySelector('#'+s_id).remove(); }
+    htm.appendChild(style); }
+
+
+
+function set_skintag6(n){
+    if(b_param[n][6]==1){
+        let htm=document.querySelector('html');
+
+        let css;
+        css=b_param[n][1] +' { background-repeat: no-repeat; }';
+
+        let style=document.createElement('style');
+        let s_id='skin_'+ String(n*10+6);
+        style.setAttribute('id', s_id);
+        style.innerHTML=css;
+        if(document.querySelector('#'+s_id)){
+            document.querySelector('#'+s_id).remove(); }
+        htm.appendChild(style); }
+    else{
+        let s_id='skin_'+ String(n*10+6);
+        if(document.querySelector('#'+s_id)){
+            document.querySelector('#'+s_id).remove(); }}}
+
+
+
+function set_skintag7(n){
+    if(b_param[n][7]==1){
+        let htm=document.querySelector('html');
+        let css;
+        css=b_param[n][1] +' { background-attachment: fixed; }';
+
+        let style=document.createElement('style');
+        let s_id='skin_'+ String(n*10+7);
+        style.setAttribute('id', s_id);
+        style.innerHTML=css;
+        if(document.querySelector('#'+s_id)){
+            document.querySelector('#'+s_id).remove(); }
+        htm.appendChild(style); }
+    else{
+        let s_id='skin_'+ String(n*10+7);
+        if(document.querySelector('#'+s_id)){
+            document.querySelector('#'+s_id).remove(); }}}
+
+
+
+function total_css(){
+    let css='';
+
+    for(let k=1; k<b_param.length; k++){
+        if(b_param[k][0]==1 && b_param[k][1]!=0){
+            if(b_param[k][2]==0){ // 背景の透過指定をした要素
+                css+=b_param[k][1] +' { background: none; } \n\n'; }
+            else{ // 背景画像を指定した要素
+                css+=b_param[k][1] +' { background: url('+ b_param[k][2] +'); \n';
+                if(b_param[k][3]==1){
+                    css+='background-size: contain; \n'; }
+                else if(b_param[k][3]==2){
+                    css+='background-size: cover; \n'; }
+                let posx=b_param[k][4];
+                let posy=b_param[k][5];
+                css+='background-position: '+ posx +'% '+ posy +'%; \n';
+                if(b_param[k][6]==1){
+                    css+='background-repeat: no-repeat; \n'; }
+                if(b_param[k][7]==1){
+                    css+='background-attachment: fixed; \n'; }
+                css+='} \n\n'; }}}
+
+    copyClipboard(css);
+    alert(
+        ' 🟦 現在の背景画像の設定をクリップボードにコピーしました\n\n'+
+        '　　CSS編集画面のコード末尾にペーストして「保存」すると\n'+
+        '　　現在の背景画像のアレンジがブログページに反映します');
+
+} // total_css()
+
+
+
+function copyClipboard(str){ // クリップボードにコピーする関数
+    let tmp_area=document.createElement("textarea");
+    tmp_area.textContent=str;
+    let body=document.getElementsByTagName("body")[0];
+    body.appendChild(tmp_area);
+    tmp_area.select();
+    let retVal=document.execCommand('copy');
+    body.removeChild(tmp_area);
+    return retVal; }
+
+
+
+window.addEventListener('DOMContentLoaded', function(){
+    let upl_index=document.querySelector('#uploadIndex');
+    if(upl_index){ // 画像フォルダウインドウの場合に動作する
+        upload_w(); }});
+
+
+function upload_w(){
+    let css=
+        '#globalHeader, #ucsHeader, .l-ucs-sidemenu-area, '+
+        '.selectImg .numLabel, label[for*="image_title"], input.inputText, '+
+        'input[type="checkbox"], #imageList .actionControl, #moreUpload, '+
+        '#imageList .imageBox .btnDefault, #mailBlog, #ucsMainRight, '+
+        '#footerAd, #globalFooter { display: none !important; } '+
+        '#ucsContent { max-width: 770px; background: #fff; } '+
+        '#ucsMain { font-size: 16px; background: none; } '+
+        '#ucsMainLeft { width: 740px !important; } '+
+        '#uploadImgTitle h2 { font-size: 16px; padding-top: 4px; } '+
+        '.comment { font-size: 16px; width: 16em; overflow: hidden; '+
+        'white-space: nowrap; } '+
+        '.selectImg:not(:nth-child(5)) { display: none; } '+
+        '.selectImg .fileUp { width: 500px; padding: 10px; font-size: 16px; } '+
+        'input#upload { font-size: 16px; padding: 1px 0 0; } '+
+        '.imageBox { width: 187px; margin: 0; } '+
+        '.imageBox .thickboxEditTitle { display: block; overflow: hidden; '+
+        'width: 175px; } '+
+        '.imageBox dt label { color: transparent; } '+
+        '.imageBox img { height: 130px; width: auto; } '+
+        'html { overflow-y: scroll !important; }';
+
+    let style=document.createElement('style');
+    style.setAttribute('id', 'skin_upload');
+    style.innerHTML=css;
+
+    let skin_upload=document.querySelector('#skin_upload');
+    if(!skin_upload){
+        document.querySelector('html').appendChild(style); }
+
+    let target3=document.querySelector('form[name="imageListForm"]');
+    let monitor3=new MutationObserver(imagelist);
+    monitor3.observe(target3, { childList: true });
+
+    imagelist();
+
+    function imagelist(){
+        let imagebox_img=document.querySelectorAll('.imageBox img');
+        for(let k=0; k<imagebox_img.length; k++){
+            imagebox_img[k].parentNode.removeAttribute('href');
+            let rsrc=imagebox_img[k].getAttribute('src');
+            let src=rsrc.substring(0, rsrc.indexOf("?"));
+            imagebox_img[k].setAttribute('src', src);
+
+            imagebox_img[k].addEventListener('mousedown', function(event){
+                event.stopImmediatePropagation();
+                let gsrc=imagebox_img[k].getAttribute('src');
+                copyClipboard(gsrc);
+
+                imagebox_img[k].parentNode.style.outline='3px solid red';
+                imagebox_img[k].parentNode.style.outlineOffset='-3px';
+                setTimeout(()=>{
+                    imagebox_img[k].parentNode.style.outline='none';
+                }, 2000); }); }}
+} // upload_w()
+
+
+
+window.addEventListener('DOMContentLoaded', function(){
+    let editCss=document.querySelector('#editCss');
+    if(editCss){ //「CSSの編集」の画面で動作する
+        edit_w();
+        editcss(); }});
+
+
+function edit_w(){
+    let css=
+        '#globalHeader, .l-ucs-sidemenu-area, #ucsMainRight, '+
+        'ul.editTools , .infoArea , #footerAd, #globalFooter '+
+        '{ display: none !important; } '+
+        '#ucsContent { max-width: 770px; background: #fff; } '+
+        '#ucsMain { font-size: 16px; background: none; } '+
+        '#ucsMainLeft { width: 740px !important; } '+
+        '.moreLink a { font-weight: bold; color: #000; } '+
+        '.textInputArea .textarea1 { width: 715px !important; height: 320px; '+
+        'font-size: 16px; } .limText { margin: 0; } '+
+        'html { overflow-y: scroll !important; } '+
+        '#editCss #notes { font-size: 15px; } '+
+        '#editCss #myframe { display: none; } '+
+        '#editCss #contentsForm textarea { width: 720px !important; '+
+        'height: 510px; } '+
+        '#editCss .actionControl .msg { margin: -30px 0 10px; } ';
+
+    let style=document.createElement('style');
+    style.setAttribute('id', 'edit_w');
+    style.innerHTML=css;
+
+    let edit_w=document.querySelector('#edit_w');
+    if(!edit_w){
+        document.querySelector('html').appendChild(style); }
+} // edit_w()
+
+
+
+function editcss(){
+    let myUcsPage=document.querySelector('#myUcsPage');
+    myUcsPage.innerHTML=
+        '<input id="blog" type="submit" value="ブログ画面">';
+
+    let css=
+        '.textarea1 { font-size: 16px; } '+
+        '#ucsHeader { position: fixed; left: calc( 50% - 387px); bottom: 0; '+
+        'padding: 20px 12px; width: 750px; } '+
+        '#ucsSubMenu { top: 13px !important; } '+
+        '#myUcsPage { display: flex !important; } '+
+        '#ucsHeader li:not(:first-child){ visibility: hidden; } '+
+        '#ucsMainLeft { position: static !important; } '+
+        '.actionControl { padding-bottom: 30px; } '+
+        '#ucsHeader input, input[name="save_mode"] { '+
+        'font: normal 16px Meiryo; padding: 3px 8px 1px; color: #fff; '+
+        'width: 150px; cursor: pointer; -moz-appearance: none; } '+
+        '#ucsHeader input { box-shadow: inset 0 0 0 40px #2196f3; } '+
+        'input[name="save_mode"] { position: fixed; bottom: 14px; '+
+        'left: calc(50% - 140px); box-shadow: inset 0 0 0 40px #00a08e; }';
+
+    let style=document.createElement('style');
+    style.innerHTML=css;
+    myUcsPage.appendChild(style);
+
+    let blog=document.querySelector('#blog');
+    let my_blog=document.querySelector('#ucsSubMenu li:last-child a');
+    blog.onclick=function(){
+        my_blog.click(); }
+
+    let btnPrimary=document.querySelector('input[name="save_mode"]');
+    btnPrimary.classList.remove('btnPrimary');
+
+    let query=location.href.toString().slice(-4); // パネルからCSS編集を開いた場合
+    if(query=='?sco'){
+        let css_text=document.querySelector('#contentsForm textarea');
+        css_text.scrollTop=css_text.scrollHeight; } // コードを最下部を表示する
+} // editcss()
