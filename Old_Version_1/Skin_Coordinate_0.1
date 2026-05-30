@@ -1,0 +1,267 @@
+// ==UserScript==
+// @name         Skin Coordinate
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description   「ヘッダー背景画像」のチェック
+// @author       Ameba Blog User
+// @match       https://ameblo.jp/*
+// @match       https://blog.ameba.jp/*
+// @noframes
+// @grant        none
+// ==/UserScript==
+
+
+let task=0;
+let h1=0;
+let b1=0;
+let b2=0;
+let b3=0;
+let bo=0;
+let ht=0;
+
+let target=document.querySelector('head');
+let monitor=new MutationObserver(catch_key);
+monitor.observe(target, { childList: true });
+
+
+catch_key();
+
+
+function catch_key(){
+    let sp=document.querySelector('.skin-page');
+    if(sp){ // ページ表示エリアの取得が条件
+        document.addEventListener("keydown", check_key);
+        function check_key(event){
+            let gate=-1;
+            if(event.altKey==true){
+                if(event.keyCode==117){
+                    event.preventDefault(); gate=1; }} // ショートカット「Alt＋F6」
+
+            if(gate==1){
+                event.stopImmediatePropagation();
+                event.preventDefault();
+
+                act(); }} // ツールの実効関数
+    }} // catch_key
+
+
+/*
+panel_disp();
+coordinate();
+*/
+
+function act(){
+    if(task==0){
+        task=1;
+        panel_disp();
+        coordinate(); }
+    else if(task==1){
+        task=0;
+        panel_remove(); }}
+
+
+
+function panel_disp(){
+    let panel=document.createElement('div');
+    panel.setAttribute('id', 'skin_panel');
+
+    panel.innerHTML=
+        '<input id="h1_type" type="submit" value="header 1">'+
+        '<input id="b1_type" type="submit" value="body 1">'+
+        '<input id="b2_type" type="submit" value="body 2">'+
+        '<input id="b3_type" type="submit" value="body 3">'+
+        '<input id="body_type" type="submit" value="body">'+
+        '<input id="html_type" type="submit" value="html">';
+
+    let css=
+        '#skin_panel { position: fixed; bottom: 40px; left: calc(50% - 300px); '+
+        'width: 600px; padding: 15px 0 15px 20px; background: #005f56; '+
+        'border: 2px solid #fff; border-radius: 4px; z-index: 10; }'+
+        '#skin_panel input { font: normal 16px meiryo; color: #000; '+
+        'margin-right: 20px; padding: 4px 8px 2px; }';
+
+    let style=document.createElement('style');
+    style.innerHTML=css;
+    panel.appendChild(style);
+
+    let skin_panel=document.querySelector('#skin_panel');
+    if(!skin_panel){
+        document.querySelector('body').appendChild(panel); }} // panel_disp()
+
+
+function panel_remove(){
+    let skin_panel=document.querySelector('#skin_panel');
+    skin_panel.remove(); }
+
+
+
+function coordinate(){
+    let h1_type=document.querySelector('#h1_type');
+    let b1_type=document.querySelector('#b1_type');
+    let b2_type=document.querySelector('#b2_type');
+    let b3_type=document.querySelector('#b3_type');
+    let body_type=document.querySelector('#body_type');
+    let html_type=document.querySelector('#html_type');
+
+    h1_type.onclick=function(){
+        if(h1==0){
+            h1=1;
+            h1_type.style.boxShadow='0 0 0 2px #2196f3, 0 0 0 4px #fff';
+            h1_show(); }
+        else{
+            h1=0;
+            h1_type.style.boxShadow='none';
+            h1_hide(); }}
+
+    b1_type.onclick=function(){
+        if(b1==0){
+            b1=1;
+            b1_type.style.boxShadow='0 0 0 2px red, 0 0 0 4px #fff';
+            b1_show(); }
+        else{
+            b1=0;
+            b1_type.style.boxShadow='none';
+            b1_hide(); }}
+
+    b2_type.onclick=function(){
+        if(b2==0){
+            b2=1;
+            b2_type.style.boxShadow='0 0 0 2px red, 0 0 0 4px #fff';
+            b2_show(); }
+        else{
+            b2=0;
+            b2_type.style.boxShadow='none';
+            b2_hide(); }}
+
+    b3_type.onclick=function(){
+        if(b3==0){
+            b3=1;
+            b3_type.style.boxShadow='0 0 0 2px #2196f3, 0 0 0 4px #fff';
+            b3_show(); }
+        else{
+            b3=0;
+            b3_type.style.boxShadow='none';
+            b3_hide(); }}
+
+    body_type.onclick=function(){
+        if(bo==0){
+            bo=1;
+            body_type.style.boxShadow='0 0 0 2px #0b8, 0 0 0 4px #fff';
+            bo_show(); }
+        else{
+            bo=0;
+            body_type.style.boxShadow='none';
+            bo_hide(); }}
+
+    html_type.onclick=function(){
+        if(ht==0){
+            ht=1;
+            html_type.style.boxShadow='0 0 0 2px #000, 0 0 0 4px #fff';
+            ht_show(); }
+        else{
+            ht=0;
+            html_type.style.boxShadow='none';
+            ht_hide(); }}
+
+} // coordinate()
+
+
+
+
+function h1_show(){
+    let sp=document.querySelector('.skin-page');
+    let css='.skin-bgHeader { background: transparent; '+
+        'box-shadow: #2196f3 0 0 0 4px inset, #fff 0 0 0 6px inset; }';
+    let style=document.createElement('style');
+    style.setAttribute('id', 'skin_style_h1');
+    style.innerHTML=css;
+
+    if(!document.querySelector('#skin_style_h1')){
+        sp.appendChild(style); }}
+
+function h1_hide(){
+    if(document.querySelector('#skin_style_h1')){
+        document.querySelector('#skin_style_h1').remove();}}
+
+
+function b1_show(){
+    let sp=document.querySelector('.skin-page');
+    let css='.skin-page { background: transparent; '+
+        'box-shadow: red 0 0 0 10px inset, #fff 0 0 0 12px inset; }';
+    let style=document.createElement('style');
+    style.setAttribute('id', 'skin_style_b1');
+    style.innerHTML=css;
+
+    if(!document.querySelector('#skin_style_b1')){
+        sp.appendChild(style); }}
+
+function b1_hide(){
+    if(document.querySelector('#skin_style_b1')){
+        document.querySelector('#skin_style_b1').remove(); }}
+
+
+function b2_show(){
+    let sp=document.querySelector('.skin-page');
+    let css='.skin-page::before { background: transparent; '+
+        'box-shadow: red 0 0 0 10px inset, #fff 0 0 0 12px inset; }';
+    let style=document.createElement('style');
+    style.setAttribute('id', 'skin_style_b2');
+    style.innerHTML=css;
+
+    if(!document.querySelector('#skin_style_b2')){
+        sp.appendChild(style); }}
+
+function b2_hide(){
+    if(document.querySelector('#skin_style_b2')){
+        document.querySelector('#skin_style_b2').remove(); }}
+
+
+function b3_show(){
+    let sp=document.querySelector('.skin-page');
+    let css='.skin-blogBody { background: transparent; '+
+        'box-shadow: #2196f3 0 0 0 4px inset, #fff 0 0 0 6px inset; }';
+    let style=document.createElement('style');
+    style.setAttribute('id', 'skin_style_b3');
+    style.innerHTML=css;
+
+    if(!document.querySelector('#skin_style_b3')){
+        sp.appendChild(style); }}
+
+function b3_hide(){
+    if(document.querySelector('#skin_style_b3')){
+        document.querySelector('#skin_style_b3').remove(); }}
+
+
+function bo_show(){
+    let sp=document.querySelector('.skin-page');
+    let css='body { background: transparent; '+
+        'box-shadow: #0b8 0 0 0 10px inset, #fff 0 0 0 12px inset; }';
+    let style=document.createElement('style');
+    style.setAttribute('id', 'skin_style_bo');
+    style.innerHTML=css;
+
+    if(!document.querySelector('#skin_style_bo')){
+        sp.appendChild(style); }}
+
+function bo_hide(){
+    if(document.querySelector('#skin_style_bo')){
+        document.querySelector('#skin_style_bo').remove(); }}
+
+
+function ht_show(){
+    let sp=document.querySelector('.skin-page');
+    let css='html { background: #fff; '+
+        'background-image: linear-gradient(45deg, #aaa 25%, transparent 25%, '+
+        'transparent 75%, #aaa 75%, #aaa), '+
+        'linear-gradient(-45deg, #aaa 25%, transparent 25%, transparent 75%, '+
+        '#aaa 75%, #aaa); background-size: 10px 10px; }';
+    let style=document.createElement('style');
+    style.setAttribute('id', 'skin_style_ht');
+    style.innerHTML=css;
+
+    if(!document.querySelector('#skin_style_ht')){
+        sp.appendChild(style); }}
+
+function ht_hide(){
+    if(document.querySelector('#skin_style_ht')){
+        document.querySelector('#skin_style_ht').remove(); }}
