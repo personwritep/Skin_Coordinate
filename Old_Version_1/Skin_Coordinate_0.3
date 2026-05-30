@@ -1,0 +1,315 @@
+// ==UserScript==
+// @name         Skin Coordinate
+// @namespace    http://tampermonkey.net/
+// @version      0.3
+// @description   「ヘッダー背景画像」のチェック
+// @author       Ameba Blog User
+// @match       https://ameblo.jp/*
+// @match       https://blog.ameba.jp/ucs/skin/srvskinpreview*
+// @match       https://blog.ameba.jp/ucs/upload/srvimage*
+// @run-at       document-start
+// @noframes
+// @grant        none
+// ==/UserScript==
+
+
+let task=0;
+let h1=0;
+let h2=0;
+let b1=0;
+let b2=0;
+let b3=0;
+let bo=0;
+let ht=0;
+
+let target=document.querySelector('head');
+let monitor=new MutationObserver(catch_key);
+monitor.observe(target, { childList: true });
+
+
+catch_key();
+
+
+function catch_key(){
+    let sp=document.querySelector('.skin-page');
+    if(sp){ // ページ表示エリアの取得が条件
+        document.addEventListener("keydown", check_key);
+        function check_key(event){
+            let gate=-1;
+            if(event.altKey==true){
+                if(event.keyCode==117){
+                    event.preventDefault(); gate=1; }} // ショートカット「Alt＋F6」
+
+            if(gate==1){
+                event.stopImmediatePropagation();
+                event.preventDefault();
+
+                act(); }} // ツールの実効関数
+    }} // catch_key
+
+
+/*
+panel_disp();
+coordinate();
+*/
+
+function act(){
+    if(task==0){
+        task=1;
+        panel_disp();
+        coordinate(); }
+    else if(task==1){
+        task=0;
+        panel_remove(); }}
+
+
+
+function panel_disp(){
+    let panel=document.createElement('div');
+    panel.setAttribute('id', 'skin_panel');
+
+    panel.innerHTML=
+        '<input id="h1_type" type="submit" value="Header 1">'+
+        '<input id="h2_type" type="submit" value="Header 2">'+
+        '<input id="b1_type" type="submit" value="BlogText 1">'+
+        '<input id="b2_type" type="submit" value="BlogText 2">'+
+        '<input id="b3_type" type="submit" value="BlogText 3">'+
+        '<input id="body_type" type="submit" value="body">'+
+        '<input id="html_type" type="submit" value="html">'+
+        '<input id="upload" type="submit" value="Upload">';
+
+    let css=
+        '#skin_panel { position: fixed; bottom: 40px; left: calc(50% - 490px); '+
+        'width: 980px; padding: 15px 0 15px 20px; background: #005f56; '+
+        'border: 2px solid #fff; border-radius: 4px; z-index: 10; }'+
+        '#skin_panel input { font: normal 16px meiryo; color: #000; '+
+        'margin-right: 20px; padding: 4px 8px 2px; }';
+
+    let style=document.createElement('style');
+    style.innerHTML=css;
+    panel.appendChild(style);
+
+    let skin_panel=document.querySelector('#skin_panel');
+    if(!skin_panel){
+        document.querySelector('body').appendChild(panel); }} // panel_disp()
+
+
+function panel_remove(){
+    let skin_panel=document.querySelector('#skin_panel');
+    skin_panel.remove(); }
+
+
+
+function coordinate(){
+    let h1_type=document.querySelector('#h1_type');
+    let h2_type=document.querySelector('#h2_type');
+    let b1_type=document.querySelector('#b1_type');
+    let b2_type=document.querySelector('#b2_type');
+    let b3_type=document.querySelector('#b3_type');
+    let body_type=document.querySelector('#body_type');
+    let html_type=document.querySelector('#html_type');
+    let upload=document.querySelector('#upload');
+
+
+    h1_type.onclick=function(){
+        if(h1==0){
+            h1=1;
+            h1_type.style.boxShadow='0 0 0 2px #2196f3, 0 0 0 4px #fff';
+            back_show(1); }
+        else{
+            h1=0;
+            h1_type.style.boxShadow='none';
+            back_hide(1); }}
+
+
+    h2_type.onclick=function(){
+        if(h2==0){
+            h2=1;
+            h2_type.style.boxShadow='0 0 0 2px #2196f3, 0 0 0 4px #fff';
+            back_show(2); }
+        else{
+            h2=0;
+            h2_type.style.boxShadow='none';
+            back_hide(2); }}
+
+    b1_type.onclick=function(){
+        if(b1==0){
+            b1=1;
+            b1_type.style.boxShadow='0 0 0 2px red, 0 0 0 4px #fff';
+            back_show(3); }
+        else{
+            b1=0;
+            b1_type.style.boxShadow='none';
+            back_hide(3); }}
+
+    b2_type.onclick=function(){
+        if(b2==0){
+            b2=1;
+            b2_type.style.boxShadow='0 0 0 2px red, 0 0 0 4px #fff';
+            back_show(4); }
+        else{
+            b2=0;
+            b2_type.style.boxShadow='none';
+            back_hide(4); }}
+
+    b3_type.onclick=function(){
+        if(b3==0){
+            b3=1;
+            b3_type.style.boxShadow='0 0 0 2px #2196f3, 0 0 0 4px #fff';
+            back_show(5); }
+        else{
+            b3=0;
+            b3_type.style.boxShadow='none';
+            back_hide(5); }}
+
+    body_type.onclick=function(){
+        if(bo==0){
+            bo=1;
+            body_type.style.boxShadow='0 0 0 2px #0b8, 0 0 0 4px #fff';
+           back_show(6); }
+        else{
+            bo=0;
+            body_type.style.boxShadow='none';
+            back_hide(6); }}
+
+    html_type.onclick=function(){
+        if(ht==0){
+            ht=1;
+            html_type.style.boxShadow='0 0 0 4px #fff';
+            html_type.style.outline='2px dotted #000';
+            back_show(7); }
+        else{
+            ht=0;
+            html_type.style.boxShadow='none';
+            html_type.style.outline='none';
+            back_hide(7); }}
+
+    upload.onclick=function(){
+            window.open('https://blog.ameba.jp/ucs/upload/srvimagelist.do',
+                        null, 'top=50,left=100,width=800,height=640'); }
+
+
+
+} // coordinate()
+
+function back_show(n){
+    let css;
+    let s_id;
+    let sp=document.querySelector('.skin-page');
+    if(n==1){
+        css='.skin-bgHeader { background: none; '+
+        'box-shadow: #2196f3 0 0 0 4px inset, #fff 0 0 0 6px inset; }'; }
+    if(n==2){
+        css='.skin-columnA .skin-bgHeader > div, '+
+        '.skin-columnB .skin-bgHeader > div { background: none; '+
+        'box-shadow: #2196f3 0 0 0 4px inset, #fff 0 0 0 6px inset; }'; }
+    if(n==3){
+        css='.skin-page { background: none; '+
+        'box-shadow: red 0 0 0 10px inset, #fff 0 0 0 12px inset; }'; }
+    if(n==4){
+        css='.skin-page::before { background: none; '+
+        'box-shadow: red 0 0 0 10px inset, #fff 0 0 0 12px inset; }'; }
+    if(n==5){
+        css='.skin-blogBody { background: none; '+
+        'box-shadow: #2196f3 0 0 0 4px inset, #fff 0 0 0 6px inset; }'; }
+    if(n==6){
+        css='body { background: none; '+
+        'box-shadow: #0b8 0 0 0 10px inset, #fff 0 0 0 12px inset; }'; }
+    if(n==7){
+        css='html { background: #fff; '+
+        'background-image: linear-gradient(45deg, #ddd 25%, transparent 25%, '+
+        'transparent 75%, #ddd 75%, #ddd), '+
+        'linear-gradient(-45deg, #ddd 25%, transparent 25%, transparent 75%, '+
+        '#ddd 75%, #ddd); background-size: 10px 10px; }'; }
+
+    let style=document.createElement('style');
+    s_id='skin_'+n;
+    style.setAttribute('id', s_id);
+    style.innerHTML=css;
+
+    if(!document.querySelector('#'+s_id)){
+        sp.appendChild(style); }}
+
+
+function back_hide(n){
+    let s_id;
+    s_id='skin_'+n;
+    document.querySelector('#'+s_id).remove(); }
+
+
+
+window.addEventListener('DOMContentLoaded', function(){
+    let upl_index=document.querySelector('#uploadIndex');
+    if(upl_index){ // 画像フォルダウインドウの場合に動作する
+        upload_w(); }});
+
+function upload_w(){
+    let css=
+        '#globalHeader, #ucsHeader, .l-ucs-sidemenu-area, '+
+        '.selectImg .numLabel, label[for="image_title1"], input.inputText, '+
+        'input[type="checkbox"], #imageList .actionControl, #moreUpload, '+
+        '#imageList .imageBox .btnDefault, #mailBlog, #ucsMainRight, '+
+        '#footerAd, #globalFooter { display: none !important; } '+
+        '#ucsContent { width: 770px !important; background: #fff; } '+
+        '#ucsMain { font-size: 16px; background: none; } '+
+        '#ucsMainLeft { width: 740px !important; } '+
+        '#uploadImgTitle h2 { font-size: 16px; padding-top: 4px; } '+
+        '.comment { font-size: 16px; width: 16em; overflow: hidden; '+
+        'white-space: nowrap; } '+
+        '.selectImg:not(:nth-child(3)) { display: none; } '+
+        '.selectImg .fileUp { width: 500px; padding: 10px; font-size: 16px; } '+
+        'input#upload { font-size: 16px; padding: 1px 0 0; } '+
+        '.imageBox { width: 187px; margin: 0; } '+
+        '.imageBox .thickboxEditTitle { display: block; overflow: hidden; '+
+        'width: 175px; } '+
+        '.imageBox dt label { color: transparent; } '+
+        '.imageBox img { height: 130px; width: auto; } '+
+        'html { overflow-y: scroll !important; }';
+
+    let style=document.createElement('style');
+    style.setAttribute('id', 'skin_upload');
+    style.innerHTML=css;
+
+    let skin_upload=document.querySelector('#skin_upload');
+    if(!skin_upload){
+        document.querySelector('html').appendChild(style); }
+
+    let target3=document.querySelector('form[name="imageListForm"]');
+    let monitor3=new MutationObserver(imagelist);
+    monitor3.observe(target3, { childList: true });
+
+    imagelist();
+
+    function imagelist(){
+        let imagebox_img=document.querySelectorAll('.imageBox img');
+        for(let k=0; k<imagebox_img.length; k++){
+            imagebox_img[k].parentNode.removeAttribute('href');
+            let rsrc=imagebox_img[k].getAttribute('src');
+            let src=rsrc.substring(0, rsrc.indexOf("?"));
+            imagebox_img[k].setAttribute('src', src);
+
+            imagebox_img[k].addEventListener('mousedown', function(event){
+                event.stopImmediatePropagation();
+                let gsrc=imagebox_img[k].getAttribute('src');
+                copyClipboard(gsrc);
+
+                imagebox_img[k].parentNode.style.outline='3px solid red';
+                imagebox_img[k].parentNode.style.outlineOffset='-3px';
+
+                setTimeout(()=>{
+                    imagebox_img[k].parentNode.style.outline='none';
+                }, 2000);
+            }); }}
+
+
+    function copyClipboard(str){
+        let tmp_area=document.createElement("textarea");
+        tmp_area.textContent=str;
+        let body=document.getElementsByTagName("body")[0];
+        body.appendChild(tmp_area);
+        tmp_area.select();
+        let retVal=document.execCommand('copy');
+        body.removeChild(tmp_area);
+        return retVal; }
+
+} // upload_w()
