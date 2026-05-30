@@ -1,0 +1,600 @@
+// ==UserScript==
+// @name         Skin Coordinate
+// @namespace    http://tampermonkey.net/
+// @version      0.5
+// @description   「ヘッダー背景画像」のチェック
+// @author       Ameba Blog User
+// @match       https://ameblo.jp/*
+// @match       https://blog.ameba.jp/ucs/skin/srvskinpreview*
+// @match       https://blog.ameba.jp/ucs/upload/srvimage*
+// @run-at       document-start
+// @noframes
+// @grant        none
+// ==/UserScript==
+
+
+let task=0; // メイン ON/OFF
+let g_open=0; // サブパネル ON/OFF
+
+let bn1=0; // bn値は「0:通常 1:透過 2:背景貼付」
+let bn2=0;
+let bn3=0;
+let bn4=0;
+let bn5=0;
+let bn6=0;
+let bn7=0;
+
+let trim_param=[
+    ['0', '0', '0', '0'],
+    ['.skin-bgHeader { background: none; box-shadow: '+
+     '#2196f3 0 0 0 4px inset, #fff 0 0 0 6px inset; }', '0', '0', '0'],
+    ['.skin-bgHeader > div { background: none; '+
+     'box-shadow: #2196f3 0 0 0 4px inset, #fff 0 0 0 6px inset; }', '0', '0', '0'],
+    ['.skin-page { background: none; '+
+     'box-shadow: red 0 0 0 10px inset, #fff 0 0 0 12px inset; }', '0', '0', '0'],
+    ['.skin-page::before { background: none; '+
+     'box-shadow: red 0 0 0 10px inset, #fff 0 0 0 12px inset; }', '0', '0', '0'],
+    ['.skin-blogBody { background: none; '+
+     'box-shadow: #2196f3 0 0 0 4px inset, #fff 0 0 0 6px inset; }', '0', '0', '0'],
+    ['body { background: none; '+
+     'box-shadow: #0b8 0 0 0 10px inset, #fff 0 0 0 12px inset; }', '0', '0', '0'],
+    ['html { background: #fff; '+
+     'background-image: linear-gradient(45deg, #ddd 25%, transparent 25%, '+
+     'transparent 75%, #ddd 75%, #ddd), '+
+     'linear-gradient(-45deg, #ddd 25%, transparent 25%, transparent 75%, '+
+     '#ddd 75%, #ddd); background-size: 10px 10px; }', '0', '0', '0']];
+
+reset_param();
+
+function reset_param(){
+    for(let k=1; k<8; k++){
+        trim_param[k][1]=trim_param[k][0]; }}
+
+
+let target=document.querySelector('head');
+let monitor=new MutationObserver(catch_key);
+monitor.observe(target, { childList: true });
+
+
+catch_key();
+
+
+function catch_key(){
+    let sp=document.querySelector('.skin-page');
+    if(sp){ // ページ表示エリアの取得が条件
+        document.addEventListener("keydown", check_key);
+        function check_key(event){
+            let gate=-1;
+            if(event.altKey==true){
+                if(event.keyCode==117){
+                    event.preventDefault(); gate=1; }} // ショートカット「Alt＋F6」
+
+            if(gate==1){
+                event.stopImmediatePropagation();
+                event.preventDefault();
+
+                main(); }} // ツールの実効関数
+    }} // catch_key
+
+
+
+function main(){
+    if(task==0){
+        task=1;
+        panel_disp();
+        panel2_disp();
+        coordinate(); }
+    else if(task==1){
+        task=0;
+        panel_remove();
+        panel2_remove(); }}
+
+
+
+function panel_disp(){
+    let panel=document.createElement('div');
+    panel.setAttribute('id', 'skin_panel');
+
+    panel.innerHTML=
+        '<input id="b1" type="submit" value="Header 1">'+
+        '<input id="b2" type="submit" value="Header 2">'+
+        '<input id="b3" type="submit" value="BlogText 1">'+
+        '<input id="b4" type="submit" value="BlogText 2">'+
+        '<input id="b5" type="submit" value="BlogText 3">'+
+        '<input id="b6" type="submit" value="body">'+
+        '<input id="b7" type="submit" value="html">'+
+        '<input id="upload" type="submit" value="Upload">'+
+        '<input id="get_code" type="submit" value="Get Code">';
+
+    let css=
+        '#skin_panel { position: fixed; bottom: 40px; left: calc(50% - 490px); '+
+        'width: 980px; padding: 15px 0 15px 20px; background: #005f56; '+
+        'border: 2px solid #fff; border-radius: 4px; z-index: 10; }'+
+        '#skin_panel input { font: normal 16px meiryo; color: #000; '+
+        'margin-right: 20px; padding: 4px 8px 2px; } '+
+        '#b1, #b2, #b3, #b4, #b5, #b6 { outline: none; }';
+
+    let style=document.createElement('style');
+    style.innerHTML=css;
+    panel.appendChild(style);
+
+    let skin_panel=document.querySelector('#skin_panel');
+    if(!skin_panel){
+        document.querySelector('body').appendChild(panel); }} // panel_disp()
+
+
+function panel_remove(){
+    let skin_panel=document.querySelector('#skin_panel');
+    skin_panel.remove(); }
+
+
+
+function panel2_disp(){
+    let panel=document.createElement('div');
+    panel.setAttribute('id', 'g_panel');
+
+    panel.innerHTML=
+        '<input id="g0" type="submit" value="S">'+
+        '<input id="g1" placeholder="背景用の画像SRCを入力" autocomplete="off">'+
+        '<input id="g2" type="submit" value="Overlay">'+
+        '<input id="g3" type="submit" value="Trim1">'+
+        '<input id="g4" type="submit" value="Trim2">'+
+        '<input id="g5" type="submit" value="Trim3">'+
+        '<input id="g6" type="submit" value="Trim4">'+
+        '<input id="g7" type="submit" value="Reset">'+
+        '<input id="g8" type="submit" value="X">';
+
+    let css=
+        '#g_panel { position: fixed; bottom: 110px; left: calc(50% - 490px); '+
+        'width: 980px; padding: 15px 0 15px 20px; background: #005f56; '+
+        'border: 2px solid #fff; border-radius: 4px; z-index: 10;  display: none; }'+
+        '#g_panel input { font: normal 16px meiryo; color: #000; '+
+        'margin-right: 15px; padding: 4px 6px 2px; }'+
+        '#g1 { width: 390px; }';
+
+    let style=document.createElement('style');
+    style.innerHTML=css;
+    panel.appendChild(style);
+
+    let g_panel=document.querySelector('#g_panel');
+    if(!g_panel){
+        document.querySelector('body').appendChild(panel); }} // panel2_disp()
+
+
+function panel2_remove(){
+    let g_panel=document.querySelector('#g_panel');
+    g_panel.remove(); }
+
+
+
+function coordinate(){
+    let b1=document.querySelector('#b1');
+    let b2=document.querySelector('#b2');
+    let b3=document.querySelector('#b3');
+    let b4=document.querySelector('#b4');
+    let b5=document.querySelector('#b5');
+    let b6=document.querySelector('#b6');
+    let b7=document.querySelector('#b7');
+    let upload=document.querySelector('#upload');
+    let get_code=document.querySelector('#get_code');
+
+    b1.onclick=function(){
+        if(bn1==0){
+            bn1=1;
+            b1.style.boxShadow='0 0 0 2px #2196f3, 0 0 0 4px #fff';
+            check_back(1); }
+        else{
+            bn1=0;
+            b1.style.boxShadow='none';
+            undo_check(1);
+            g_open=0;
+            undo_impose(1); }}
+
+    b2.onclick=function(){
+        if(bn2==0){
+            bn2=1;
+            b2.style.boxShadow='0 0 0 2px #2196f3, 0 0 0 4px #fff';
+            check_back(2); }
+        else{
+            bn2=0;
+            b2.style.boxShadow='none';
+            undo_check(2);
+            g_open=0;
+            undo_impose(2); }}
+
+    b3.onclick=function(){
+        if(bn3==0){
+            bn3=1;
+            b3.style.boxShadow='0 0 0 2px red, 0 0 0 4px #fff';
+            check_back(3); }
+        else{
+            bn3=0;
+            b3.style.boxShadow='none';
+            undo_check(3);
+            g_open=0;
+            undo_impose(3); }}
+
+    b4.onclick=function(){
+        if(bn4==0){
+            bn4=1;
+            b4.style.boxShadow='0 0 0 2px red, 0 0 0 4px #fff';
+            check_back(4); }
+        else{
+            bn4=0;
+            b4.style.boxShadow='none';
+            undo_check(4);
+            g_open=0;
+            undo_impose(4); }}
+
+    b5.onclick=function(){
+        if(bn5==0){
+            bn5=1;
+            b5.style.boxShadow='0 0 0 2px #2196f3, 0 0 0 4px #fff';
+            check_back(5); }
+        else{
+            bn5=0;
+            b5.style.boxShadow='none';
+            undo_check(5);
+            g_open=0;
+            undo_impose(5); }}
+
+    b6.onclick=function(){
+        if(bn6==0){
+            bn6=1;
+            b6.style.boxShadow='0 0 0 2px #0b8, 0 0 0 4px #fff';
+            check_back(6); }
+        else{
+            bn6=0;
+            b6.style.boxShadow='none';
+            undo_check(6);
+            g_open=0;
+            undo_impose(6); }}
+
+    b7.onclick=function(){
+        if(bn7==0){
+            bn7=1;
+            b7.style.boxShadow='0 0 0 4px #fff';
+            b7.style.outline='2px dotted #000';
+            check_back(7); }
+        else{
+            bn7=0;
+            b7.style.boxShadow='none';
+            b7.style.outline='none';
+            undo_check(7);
+            g_open=0;
+            undo_impose(7); }}
+
+
+    b1.oncontextmenu=function(event){
+        event.preventDefault();
+        if(g_open==0 && bn1==1){
+            g_open=1;
+            impose(1); }
+        else{
+            g_open=0;
+            undo_impose(1); }}
+
+    b2.oncontextmenu=function(event){
+        event.preventDefault();
+        if(g_open==0 && bn2==1){
+            g_open=1;
+            impose(2); }
+        else{
+            g_open=0;
+            undo_impose(2); }}
+
+    b3.oncontextmenu=function(event){
+        event.preventDefault();
+        if(g_open==0 && bn3==1){
+            g_open=1;
+            impose(3); }
+        else{
+            g_open=0;
+            undo_impose(3); }}
+
+    b4.oncontextmenu=function(event){
+        event.preventDefault();
+        if(g_open==0 && bn4==1){
+            g_open=1;
+            impose(4); }
+        else{
+            g_open=0;
+            undo_impose(4); }}
+
+    b5.oncontextmenu=function(event){
+        event.preventDefault();
+        if(g_open==0 && bn5==1){
+            g_open=1;
+            impose(5); }
+        else{
+            g_open=0;
+            undo_impose(5); }}
+
+    b6.oncontextmenu=function(event){
+        event.preventDefault();
+        if(g_open==0 && bn6==1){
+            g_open=1;
+            impose(6); }
+        else{
+            g_open=0;
+            undo_impose(6); }}
+
+    b7.oncontextmenu=function(event){
+        event.preventDefault();
+        if(g_open==0 && bn7==1){
+            g_open=1;
+            impose(7); }
+        else{
+            g_open=0;
+            undo_impose(7); }}
+
+
+    upload.onclick=function(){
+        window.open('https://blog.ameba.jp/ucs/upload/srvimagelist.do',
+                    null, 'top=50,left=100,width=800,height=640'); }
+
+
+    get_code.onclick=function(){
+        total_css(); }
+
+} // coordinate()
+
+
+
+function check_back(n){
+    let css;
+    let s_id;
+    let sp=document.querySelector('.skin-page');
+
+    css=trim_param[n][1];
+
+    let style=document.createElement('style');
+    s_id='skin_'+n;
+    style.setAttribute('id', s_id);
+    style.innerHTML=css;
+
+    if(document.querySelector('#'+s_id)){
+        document.querySelector('#'+s_id).remove(); }
+    sp.appendChild(style); }
+
+
+function undo_check(n){
+    let s_id;
+    s_id='skin_'+n;
+    document.querySelector('#'+s_id).remove(); }
+
+
+
+function impose(n){
+    let g0=document.querySelector('#g0');
+    let g1=document.querySelector('#g1');
+    let g2=document.querySelector('#g2');
+    let g3=document.querySelector('#g3');
+    let g4=document.querySelector('#g4');
+    let g5=document.querySelector('#g5');
+    let g6=document.querySelector('#g6');
+    let g7=document.querySelector('#g7');
+    let g8=document.querySelector('#g8');
+
+    let b_id='#b'+n
+    document.querySelector(b_id).style.background='#3bff5c';
+
+    for(let k=1; k<8; k++){
+        if(k!=n){
+            let b_id='#b'+k;
+            document.querySelector(b_id).disabled=true; }}
+
+    let g_panel=document.querySelector('#g_panel');
+    g_panel.style.display='block';
+
+
+    g0.onclick=function(){
+        show_size(n); }
+
+    g2.onclick=function(){
+        let src=g1.value;
+        if(src!=''){
+            trim(n, src); }}
+
+    g7.onclick=function(){
+        trim_param[n][1]=trim_param[n][0];
+        check_back(n); }
+
+    g8.onclick=function(){
+        undo_impose(n); }
+
+} // impose()
+
+
+
+function undo_impose(n){
+    let b_id='#b'+n
+    document.querySelector(b_id).style.background='';
+    let g_panel=document.querySelector('#g_panel');
+    g_panel.style.display='none';
+    g_open=0;
+
+    for(let k=1; k<8; k++){
+        let b_id='#b'+k;
+        document.querySelector(b_id).disabled=false; }}
+
+
+function show_size(n){
+    let area;
+
+    if(n==1){
+        area=document.querySelector('.skin-bgHeader'); }
+    if(n==2){
+        area=document.querySelector('.skin-bgHeader > div'); }
+    if(n==3){
+        area=document.querySelector('.skin-page'); }
+    if(n==4){
+        area=document.querySelector('.skin-page::before'); } // 擬似要素は取得できないかも？
+    if(n==5){
+        area=document.querySelector('.skin-blogBody'); }
+    if(n==6){
+        area=document.querySelector('body'); }
+    if(n==7){
+        area=document.querySelector('html'); }
+
+    alert( area.getBoundingClientRect().width
+          +' × '+ area.getBoundingClientRect().height ); }
+
+
+function trim(n, src){
+    let css;
+    let s_id;
+    let sp=document.querySelector('.skin-page');
+
+    if(n==1){
+        css='.skin-bgHeader { background: '; }
+    if(n==2){
+        css='.skin-bgHeader > div { background: '; }
+    if(n==3){
+        css='.skin-page { background: '; }
+    if(n==4){
+        css='.skin-page::before { background: '; }
+    if(n==5){
+        css='.skin-blogBody { background: '; }
+    if(n==6){
+        css='body { background: '; }
+    if(n==7){
+        css='html { background: '; }
+
+    css=css +'url('+ src +'); }';
+
+    trim_param[n][1]=css; // [n][0]は初期値、[n][1]は更新値
+
+    let style=document.createElement('style');
+    s_id='skin_'+n;
+    style.setAttribute('id', s_id);
+    style.innerHTML=css;
+
+    if(document.querySelector('#'+s_id)){
+        document.querySelector('#'+s_id).remove(); }
+    sp.appendChild(style); }
+
+
+
+function total_css(){
+    let css='';
+
+    if(bn1==1){
+        if(trim_param[1][0]==trim_param[1][1]){
+            css+='.skin-bgHeader { background: none; } '; }
+        else{
+            css+=trim_param[1][1]; }}
+    if(bn2==1){
+        if(trim_param[2][0]==trim_param[2][1]){
+            css+='.skin-bgHeader > div { background: none; } '; }
+        else{
+            css+=trim_param[2][1]; }}
+    if(bn3==1){
+        if(trim_param[3][0]==trim_param[3][1]){
+            css+='.skin-page { background: none; } '; }
+        else{
+            css+=trim_param[3][1]; }}
+    if(bn4==1){
+        if(trim_param[4][0]==trim_param[4][1]){
+            css+='.skin-page::before { background: none; } '; }
+        else{
+            css+=trim_param[4][1]; }}
+    if(bn5==1){
+        if(trim_param[5][0]==trim_param[5][1]){
+            css+='.skin-blogBody { background: none; } '; }
+        else{
+            css+=trim_param[5][1]; }}
+    if(bn6==1){
+        if(trim_param[6][0]==trim_param[6][1]){
+            css+='body { background: none; } '; }
+        else{
+            css+=trim_param[6][1]; }}
+    if(bn7==1){
+        if(trim_param[7][0]==trim_param[7][1]){
+            css+='html { background: #fff; } '; }
+        else{
+            css+=trim_param[7][1]; }}
+
+    alert(css);
+
+} // total_css()
+
+
+
+
+
+window.addEventListener('DOMContentLoaded', function(){
+    let upl_index=document.querySelector('#uploadIndex');
+    if(upl_index){ // 画像フォルダウインドウの場合に動作する
+        upload_w(); }});
+
+function upload_w(){
+    let css=
+        '#globalHeader, #ucsHeader, .l-ucs-sidemenu-area, '+
+        '.selectImg .numLabel, label[for="image_title1"], input.inputText, '+
+        'input[type="checkbox"], #imageList .actionControl, #moreUpload, '+
+        '#imageList .imageBox .btnDefault, #mailBlog, #ucsMainRight, '+
+        '#footerAd, #globalFooter { display: none !important; } '+
+        '#ucsContent { width: 770px !important; background: #fff; } '+
+        '#ucsMain { font-size: 16px; background: none; } '+
+        '#ucsMainLeft { width: 740px !important; } '+
+        '#uploadImgTitle h2 { font-size: 16px; padding-top: 4px; } '+
+        '.comment { font-size: 16px; width: 16em; overflow: hidden; '+
+        'white-space: nowrap; } '+
+        '.selectImg:not(:nth-child(3)) { display: none; } '+
+        '.selectImg .fileUp { width: 500px; padding: 10px; font-size: 16px; } '+
+        'input#upload { font-size: 16px; padding: 1px 0 0; } '+
+        '.imageBox { width: 187px; margin: 0; } '+
+        '.imageBox .thickboxEditTitle { display: block; overflow: hidden; '+
+        'width: 175px; } '+
+        '.imageBox dt label { color: transparent; } '+
+        '.imageBox img { height: 130px; width: auto; } '+
+        'html { overflow-y: scroll !important; }';
+
+    let style=document.createElement('style');
+    style.setAttribute('id', 'skin_upload');
+    style.innerHTML=css;
+
+    let skin_upload=document.querySelector('#skin_upload');
+    if(!skin_upload){
+        document.querySelector('html').appendChild(style); }
+
+    let target3=document.querySelector('form[name="imageListForm"]');
+    let monitor3=new MutationObserver(imagelist);
+    monitor3.observe(target3, { childList: true });
+
+    imagelist();
+
+    function imagelist(){
+        let imagebox_img=document.querySelectorAll('.imageBox img');
+        for(let k=0; k<imagebox_img.length; k++){
+            imagebox_img[k].parentNode.removeAttribute('href');
+            let rsrc=imagebox_img[k].getAttribute('src');
+            let src=rsrc.substring(0, rsrc.indexOf("?"));
+            imagebox_img[k].setAttribute('src', src);
+
+            imagebox_img[k].addEventListener('mousedown', function(event){
+                event.stopImmediatePropagation();
+                let gsrc=imagebox_img[k].getAttribute('src');
+                copyClipboard(gsrc);
+
+                imagebox_img[k].parentNode.style.outline='3px solid red';
+                imagebox_img[k].parentNode.style.outlineOffset='-3px';
+
+                setTimeout(()=>{
+                    imagebox_img[k].parentNode.style.outline='none';
+                }, 2000);
+            }); }}
+
+
+    function copyClipboard(str){
+        let tmp_area=document.createElement("textarea");
+        tmp_area.textContent=str;
+        let body=document.getElementsByTagName("body")[0];
+        body.appendChild(tmp_area);
+        tmp_area.select();
+        let retVal=document.execCommand('copy');
+        body.removeChild(tmp_area);
+        return retVal; }
+
+} // upload_w()
